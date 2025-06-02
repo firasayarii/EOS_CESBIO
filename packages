@@ -1,0 +1,3 @@
+/home/fayari/DART1425/bin/python/python -m pip install tensorflow
+/home/fayari/DART1425/bin/python/python -m pip install --upgrade h5py
+/home/fayari/DART1425/bin/python/python -m pip install joblib==1.4.2

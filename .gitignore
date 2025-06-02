@@ -1,0 +1,45 @@
+# Ignore virtual environment folders
+env/
+.venv/
+venv/
+venvv/
+dist/
+build/
+data_exploration/preprocessed_data.csv
+data_exploration/results.csv
+data_collection/data.csv
+data_collection/dataset.csv
+data_collection/results.csv
+data_collection/__pycache__
+data_exploration/data.csv
+modeling/preprocessed_data.csv
+deploiment/preprocessed_data.csv
+modeling/no_outliers.csv
+modeling/preprocessed_data_.csv
+data_exploration/preprocessed_data_.csv
+data_exploration/no_outliers.csv
+data_exploration/data.csv
+modeling_BOA/no_outliers.csv
+modeling_BOA/no_outliers_2.csv
+modeling_BOA/new_2.csv
+modeling_BOA/new_3.csv
+modeling_BOA/new_samples_features_2.csv
+modeling_BOA/new_samples_features_3.csv
+modeling_BOA/new_samples_features.csv
+modeling_BOA/new.csv
+modeling_BOA/add_training_v2.csv
+modeling_BOA/add_training.csv
+data_exploration/all_data.csv
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore system files
+.DS_Store
+
+# Ignore requirements files if you don’t want to push them
+# Uncomment the following line only if you don't want to track requirements
+# requirements.txt
+#

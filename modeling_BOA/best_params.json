@@ -1,0 +1,1 @@
+{"activation": "elu", "n_layers": 3, "units1": 232, "dropout1": 0.11109031799752554, "units2": 249, "dropout2": 0.13781937549350962, "units3": 174, "dropout3": 0.13597114528177423, "lr": 0.0003406646556719905, "batch_size": 64}
