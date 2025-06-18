@@ -1,0 +1,1 @@
+{"activation": "relu", "n_layers": 2, "units1": 137, "dropout1": 0.14057501464741973, "units2": 161, "dropout2": 0.2948464925904546, "lr": 0.0001488166508623705, "batch_size": 64}

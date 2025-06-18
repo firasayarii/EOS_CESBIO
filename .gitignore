@@ -30,6 +30,8 @@ modeling_BOA/new.csv
 modeling_BOA/add_training_v2.csv
 modeling_BOA/add_training.csv
 data_exploration/all_data.csv
+data_augmentation/*.csv
+data_exploration_2/*.csv
 # Ignore Python cache
 __pycache__/
 *.pyc

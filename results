@@ -1,0 +1,4 @@
+binning | scaler_X | SCALER_Y | MAE(E_BOA)|
+-------------------------------------------
+NO      | SS       | SS       |
+YES     | SS       |
