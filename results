@@ -1,4 +1,4 @@
-binning | scaler_X | SCALER_Y | MAE(E_BOA)|
--------------------------------------------
-NO      | SS       | SS       |
-YES     | SS       |
+binning | scaler_X | SCALER_Y | MAE(E_BOA W/m2/µm)| MAE_train(alpha)
+-------------------------------------------------------------------
+NO      | SS       | SS       |         4.41      | 0.0437
+YES     | SS       |          |                   |

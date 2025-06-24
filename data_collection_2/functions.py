@@ -12,6 +12,12 @@ def Edit_lambda(lamda_list,batch_id):
     sim.core.phase.set_nodes(meanLambda=lamda_list)
     sim.core.phase.set_nodes(deltaLambda=0)
     sim.write(overwrite=True)
+
+def Edit_delta_lambda(delta_lambda,batch_id):
+    sim=ptd.simulation(f'RTM_reference{batch_id}')
+    sim.core.phase.set_nodes(deltaLambda=delta_lambda)
+    sim.write(overwrite=True)
+    
     
 def Edit_reflectance(reflectance_list,batch_id):
     sim=ptd.simulation(f'RTM_reference{batch_id}')
