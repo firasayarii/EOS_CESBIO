@@ -16,6 +16,23 @@ import re
 import json
 from sklearn.preprocessing import StandardScaler , OneHotEncoder
 
+def get_RTMode(phase):
+    tree = ET.parse(phase)  # Remplace avec ton chemin
+    root = tree.getroot()
+
+    # Trouver la balise AtmosphereRadiativeTransfer
+    try :
+        toa_to_boa_value = None
+        for elem in root.iter('AtmosphereRadiativeTransfer'):
+            toa_to_boa_value = elem.get('TOAtoBOA')
+            break  # On s'arrête dès qu'on trouve la première
+
+        # Affichage du résultat
+        if toa_to_boa_value is not None:
+            return int(toa_to_boa_value)
+    except:
+        raise ValueError("CAN NOT FIND Atmosphere Radiative Transfer Mode")
+
 def find_paths(path: Path, keyword: str):
     for parent in path.parents:
         if keyword in parent.name:
@@ -111,11 +128,11 @@ def atmosphere_param(atmosphere_nc,atmosphere_xml):
 def prepare_features(atmosphere_list,SZA,z,reflectance_values,AI_path):
 
 
-    bins_a = np.load(AI_path / "mprime_a_bins_DART.npy")
-    bins_g = np.load(AI_path / 'mprime_g_bins_DART.npy')
+    #bins_a = np.load(AI_path / "mprime_a_bins_DART.npy")
+    #bins_g = np.load(AI_path / 'mprime_g_bins_DART.npy')
     
-    scaler=joblib.load(AI_path / "scaler_SS_DART.pkl")
-    encoder=joblib.load(AI_path / "encoder_OH_DART.pkl")
+    scaler=joblib.load(AI_path / "scaler_SS_BOA_DART.pkl")
+    #encoder=joblib.load(AI_path / "encoder_OH_DART.pkl")
 
     def muprime(z,h,µ):
         RAYON_TERRESTRE=6371
@@ -143,9 +160,9 @@ def prepare_features(atmosphere_list,SZA,z,reflectance_values,AI_path):
             muprime_a=muprime(z,Ha,µ)
             mprime_g=math.exp(-z/Hg)/muprime_g
             mprime_a=math.exp(-z/Ha)/muprime_a
-            bin_g = np.digitize(mprime_g, bins_g)
-            bin_a = np.digitize(mprime_a, bins_a)
-            new_l = [Tg_scat,Tg_abs, Ta_abs,SSA,GOD,AOD, AODS,SZA,z,reflectance_values[i],g1, µ,mu_g, mu_a, muprime_g, muprime_a, mprime_g, mprime_a,bin_g,bin_a]
+            #bin_g = np.digitize(mprime_g, bins_g)
+            #bin_a = np.digitize(mprime_a, bins_a)
+            new_l = [Tg_scat,Tg_abs, Ta_abs,SSA,GOD,AOD, AODS,SZA,z,reflectance_values[i],g1, µ,mu_g, mu_a, muprime_g, muprime_a, mprime_g, mprime_a]
             new_data.append(new_l)
     else :
 
@@ -163,27 +180,28 @@ def prepare_features(atmosphere_list,SZA,z,reflectance_values,AI_path):
             muprime_a=muprime(z,Ha,µ)
             mprime_g=math.exp(-z/Hg)/muprime_g
             mprime_a=math.exp(-z/Ha)/muprime_a
-            bin_g = np.digitize(mprime_g, bins_g)
-            bin_a = np.digitize(mprime_a, bins_a)
-            new_l = [Tg_scat,Tg_abs, Ta_abs,SSA,GOD,AOD, AODS,SZA,z,reflectance_values[0],g1, µ,mu_g, mu_a, muprime_g, muprime_a, mprime_g, mprime_a,bin_g,bin_a]
+            #bin_g = np.digitize(mprime_g, bins_g)
+            #bin_a = np.digitize(mprime_a, bins_a)
+            new_l = [Tg_scat,Tg_abs, Ta_abs,SSA,GOD,AOD, AODS,SZA,z,reflectance_values[0],g1, µ,mu_g, mu_a, muprime_g, muprime_a, mprime_g, mprime_a]
             new_data.append(new_l)
     columns = [
-    'Tg_scat','Tg_abs','Ta_abs','SSA','GOD','AOD','AODS','SZA','Z','R_scence','g1','Cos(SZA)','mu_g', 'mu_a', 'muprime_g',
-    'muprime_a', 'mprime_g','mprime_a', 'mprime_a_bin', 'mprime_g_bin'
-    ]
+    'Tg_scat','Tg_abs','Ta_abs','SSA','GOD','AOD','AODS','SZA','Z','R_scene','g1','Cos(SZA)','mu_g', 'mu_a', 'muprime_g',
+    'muprime_a', 'mprime_g','mprime_a']
     df = pd.DataFrame(new_data, columns=columns)
-    cols_to_scale = df.drop(columns=['mprime_a_bin','mprime_g_bin']).columns
-    cols_to_encode = ['mprime_a_bin', 'mprime_g_bin']
+    #df.to_csv(AI_path / 'new_samples_features_2.csv',index=False)
+    cols_to_scale = df.columns
+    #cols_to_encode = ['mprime_a_bin', 'mprime_g_bin']
     X_scaled = scaler.transform(df[cols_to_scale])
-    X_bins_encoded = encoder.transform(df[cols_to_encode])
-    encoded_feature_names = encoder.get_feature_names_out(cols_to_encode)
-
+    #X_bins_encoded = encoder.transform(df[cols_to_encode])
+    #encoded_feature_names = encoder.get_feature_names_out(cols_to_encode)
+    df.to_csv(AI_path / 'new_samples_features_16.csv',index=False)
     # Construction du DataFrame final
     df_scaled = pd.DataFrame(
-        np.concatenate([X_scaled, X_bins_encoded], axis=1),
-        columns=list(cols_to_scale) + list(encoded_feature_names),
-        index=df.index  # Pour conserver les bons index
-    )
+            X_scaled,
+            columns=cols_to_scale,
+            index=df.index  # Pour conserver les bons index
+        )
+
     return df_scaled
 
 def get_SZA(directions_path) :
@@ -306,7 +324,7 @@ def EXTRACT_E_direct(path,SZA):
 
 
 
-def calculate_BOA_TOTAL(SZA,Z,alpha,l,E_TOA):   
+'''def calculate_BOA_TOTAL(SZA,Z,alpha,l,E_TOA):   
     def muprime(z,h,µ):
         RAYON_TERRESTRE=6371
         eta = (RAYON_TERRESTRE*1000 + z) / h
@@ -332,5 +350,44 @@ def calculate_BOA_TOTAL(SZA,Z,alpha,l,E_TOA):
         numerator= E_TOA[i]*(tg_abs**Mg)*(Ta_abs**Ma)
         denominator=1+alpha[i]*delta_g_scat*Mg+(alpha[i]*(1/3)*delta_a_scat)*Ma
         BOA_i= numerator / denominator
-        BOA.append(BOA_i)
-    return BOA
+        if BOA_i>= 0 :
+        	BOA.append(BOA_i)
+        else :
+        	BOA.append(0)
+
+    return BOA'''
+
+def get_spectral_mode(phase_path):
+    tree = ET.parse(phase_path)  # Remplace par le chemin réel
+    root = tree.getroot()
+
+    # Initialiser la liste pour stocker les valeurs
+    spectral_dart_modes = []
+
+    # Parcourir tous les éléments SpectralIntervalsProperties
+    for elem in root.iter('SpectralIntervalsProperties'):
+        val = elem.get('spectralDartMode')
+        if val is not None:
+            spectral_dart_modes.append(int(val))
+
+    return spectral_dart_modes
+
+def EXTRACT_E_diffus(path):
+    try :
+        with open(path, 'r') as file:
+            for line in file:  # ← ici, on lit ligne par ligne
+                if line.strip().startswith("scene.lights.sky.color="):
+                    valeur_str = line.strip().split("=")[1]
+                    return [ float(val) for val in valeur_str.split() ]
+        return None  
+    except :
+
+        raise ValueError("E_diffus values not found.")
+    
+def E_diffus_final_values(new,old,sm):
+    
+    l=[new[i] if sm[i]==0 else old[i] for i in range(len(new)) ]
+
+    return l
+def calculate_BOA_TOTAL_BOA(predictions, E_TOA):   
+    return [p * e if p >= 0 else 0 for p, e in zip(predictions, E_TOA)]

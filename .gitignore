@@ -33,6 +33,8 @@ data_exploration/all_data.csv
 data_augmentation/*.csv
 data_exploration_2/*.csv
 */*.csv
+*.png
+*csv
 # Ignore Python cache
 __pycache__/
 *.pyc
