@@ -289,9 +289,9 @@ def edit_phase_scn(filepath, new_value):
                 file.write(line)
 
 def EXTRACT_TOA(path, SZA):
-    try :
-        E_TOA = []
+    try:
         pattern = re.compile(r"phase\.band(\d+)\.spectral\.TOA:\s*([0-9.+-eE]+)")
+        E_TOA = []
 
         with open(path, 'r') as file:
             for line in file:
@@ -300,13 +300,17 @@ def EXTRACT_TOA(path, SZA):
                     band_index = int(match.group(1))
                     value = float(match.group(2))
                     corrected_value = value * math.cos(math.radians(SZA))
-                    E_TOA.append(corrected_value)
 
-        # Retourner les valeurs triées par index de bande
+                    # Assure-toi que la liste est assez longue
+                    while len(E_TOA) <= band_index:
+                        E_TOA.append(None)  # Remplissage avec None ou 0 selon préférence
+
+                    E_TOA[band_index] = corrected_value
+
         return E_TOA
-    except :
 
-        raise ValueError("Valeurs d'irradiance non trouvées.")
+    except Exception as e:
+        raise ValueError(f"Valeurs d'irradiance non trouvées : {str(e)}")
 
     
 
