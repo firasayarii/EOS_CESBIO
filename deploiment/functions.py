@@ -301,29 +301,20 @@ def EXTRACT_TOA(path, SZA):
                     value = float(match.group(2))
                     corrected_value = value * math.cos(math.radians(SZA))
 
-<<<<<<< HEAD
+
                     # Allonger la liste si nécessaire
                     while len(E_TOA) <= band_index:
                         E_TOA.append(0.0)  # Remplir avec des zéros
-=======
-                    # Assure-toi que la liste est assez longue
-                    while len(E_TOA) <= band_index:
-                        E_TOA.append(None)  # Remplissage avec None ou 0 selon préférence
->>>>>>> 13cc05371cfe59e2d02931b28d0bfb9c257ed846
+
 
                     E_TOA[band_index] = corrected_value
 
         return E_TOA
-<<<<<<< HEAD
+
     
     except Exception as e:
-        print("--------- TOA IRRADIANCE VALUES NOT FOUND --------- ")
+        print(f"--------- TOA IRRADIANCE VALUES NOT FOUND --------- \n{e}")
         
-=======
-
-    except Exception as e:
-        raise ValueError(f"Valeurs d'irradiance non trouvées : {str(e)}")
->>>>>>> 13cc05371cfe59e2d02931b28d0bfb9c257ed846
 
     
 
