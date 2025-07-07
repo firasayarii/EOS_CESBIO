@@ -14,7 +14,7 @@ import sys
 import math
 import re
 import json
-from sklearn.preprocessing import StandardScaler , OneHotEncoder
+from tensorflow.keras.models import load_model
 
 def get_RTMode(phase):
     tree = ET.parse(phase)  # Remplace avec ton chemin
@@ -125,13 +125,13 @@ def atmosphere_param(atmosphere_nc,atmosphere_xml):
             l.append([tg_scat, tg_abs, optical_depth, albedo, a, g1])
             return l
         
-def prepare_features(atmosphere_list,SZA,z,reflectance_values,AI_path):
+def prepare_features(atmosphere_list,SZA,z,reflectance_values):
 
 
     #bins_a = np.load(AI_path / "mprime_a_bins_DART.npy")
     #bins_g = np.load(AI_path / 'mprime_g_bins_DART.npy')
     
-    scaler=joblib.load(AI_path / "scaler_SS_BOA_DART.pkl")
+    scaler=joblib.load( "scaler_SS_BOA_DART.pkl")
     #encoder=joblib.load(AI_path / "encoder_OH_DART.pkl")
 
     def muprime(z,h,µ):
@@ -194,7 +194,7 @@ def prepare_features(atmosphere_list,SZA,z,reflectance_values,AI_path):
     X_scaled = scaler.transform(df[cols_to_scale])
     #X_bins_encoded = encoder.transform(df[cols_to_encode])
     #encoded_feature_names = encoder.get_feature_names_out(cols_to_encode)
-    df.to_csv(AI_path / 'new_samples_features_16.csv',index=False)
+    df.to_csv('new_samples_features_16.csv',index=False)
     # Construction du DataFrame final
     df_scaled = pd.DataFrame(
             X_scaled,
@@ -416,7 +416,7 @@ def launch_ai(simulation_path):
     phase_path = find_files_xml(working_dir, 'phase.xml')
 
     DART_HOME = find_paths(working_dir,'DART')
-    AI_Tools = DART_HOME / 'tools' / 'AI'
+    
 
     mode = get_RTMode(phase_path)
     if mode != 1:
@@ -424,15 +424,15 @@ def launch_ai(simulation_path):
         return
 
     # Préparation des données
-    scaler_y = joblib.load(AI_Tools / 'scaler_y_SS_BOA_DART.pkl')
+    scaler_y = joblib.load('scaler_y_SS_BOA_DART.pkl')
     SZA = get_SZA(directions_path)
     z = get_altitude(maket_path)
     reflectance = get_reflectance(maket_scn, phase_scn)
     atmosphere_lists = atmosphere_param(atmosphere_nc, atmosphere_xml)
-    df = prepare_features(atmosphere_lists, SZA, z, reflectance, AI_Tools)
+    df = prepare_features(atmosphere_lists, SZA, z, reflectance)
 
     # Prédiction
-    model = load_model(AI_Tools / 'deep_model_v2.h5')
+    model = load_model('deep_model_v2.h5')
     prediction = model.predict(df)
     predictions_array = prediction.reshape(-1, 1)
     predictions_original_scale = scaler_y.inverse_transform(predictions_array)
