@@ -289,9 +289,9 @@ def edit_phase_scn(filepath, new_value):
                 file.write(line)
 
 def EXTRACT_TOA(path, SZA):
-    try :
-        E_TOA = []
+    try:
         pattern = re.compile(r"phase\.band(\d+)\.spectral\.TOA:\s*([0-9.+-eE]+)")
+        E_TOA = []
 
         with open(path, 'r') as file:
             for line in file:
@@ -300,13 +300,18 @@ def EXTRACT_TOA(path, SZA):
                     band_index = int(match.group(1))
                     value = float(match.group(2))
                     corrected_value = value * math.cos(math.radians(SZA))
-                    E_TOA.append(corrected_value)
 
-        # Retourner les valeurs triées par index de bande
+                    # Allonger la liste si nécessaire
+                    while len(E_TOA) <= band_index:
+                        E_TOA.append(0.0)  # Remplir avec des zéros
+
+                    E_TOA[band_index] = corrected_value
+
         return E_TOA
-    except :
-
-        raise ValueError("Valeurs d'irradiance non trouvées.")
+    
+    except Exception as e:
+        print("--------- TOA IRRADIANCE VALUES NOT FOUND --------- ")
+        
 
     
 
@@ -391,3 +396,58 @@ def E_diffus_final_values(new,old,sm):
     return l
 def calculate_BOA_TOTAL_BOA(predictions, E_TOA):   
     return [p * e if p >= 0 else 0 for p, e in zip(predictions, E_TOA)]
+
+def launch_ai(simulation_path):
+    working_dir = Path(simulation_path)
+
+    simulation = working_dir.name
+    atmosphere_nc = working_dir / 'output' / 'atmosphere.nc'
+    maket_scn= working_dir / 'output' / 'maket.scn'
+    phase_scn=  working_dir / 'output' / 'phase.scn'
+    simulation_properties = working_dir / 'output' / 'simulation.properties.txt'
+
+    atmosphere_xml = find_files_xml(working_dir, 'atmosphere.xml')
+    directions_path = find_files_xml(working_dir, 'directions.xml')
+    coeff_diff_path = find_files_xml(working_dir, 'coeff_diff.xml')
+    maket_path = find_files_xml(working_dir, 'maket.xml')
+    phase_path = find_files_xml(working_dir, 'phase.xml')
+
+    DART_HOME = find_paths(working_dir,'DART')
+    AI_Tools = DART_HOME / 'tools' / 'AI'
+
+    mode = get_RTMode(phase_path)
+    if mode != 1:
+        print("-------- AI MODEL WORKS ONLY WITH ANALYTICAL MODE -----------")
+        return
+
+    # Préparation des données
+    scaler_y = joblib.load(AI_Tools / 'scaler_y_SS_BOA_DART.pkl')
+    SZA = get_SZA(directions_path)
+    z = get_altitude(maket_path)
+    reflectance = get_reflectance(maket_scn, phase_scn)
+    atmosphere_lists = atmosphere_param(atmosphere_nc, atmosphere_xml)
+    df = prepare_features(atmosphere_lists, SZA, z, reflectance, AI_Tools)
+
+    # Prédiction
+    model = load_model(AI_Tools / 'deep_model_v2.h5')
+    prediction = model.predict(df)
+    predictions_array = prediction.reshape(-1, 1)
+    predictions_original_scale = scaler_y.inverse_transform(predictions_array)
+    predictions_list = predictions_original_scale.flatten().tolist()
+
+    # Calculs finaux
+    E_TOA = EXTRACT_TOA(simulation_properties, SZA)
+    E_BOA = calculate_BOA_TOTAL_BOA(predictions_list, E_TOA)
+    E_direct = EXTRACT_E_direct(phase_scn, SZA)
+
+    if len(E_BOA) == len(E_direct):
+        E_diffus = [i - j for i, j in zip(E_BOA, E_direct)]
+    else:
+        E_diffus = [E_BOA[0] - i for i in E_direct]
+
+    spectral_mode = get_spectral_mode(phase_path)
+    E_diffus_old = EXTRACT_E_diffus(phase_scn)
+    E_diffus = E_diffus_final_values(E_diffus, E_diffus_old, spectral_mode)
+
+    edit_phase_scn(phase_scn, E_diffus)
+    print("✅ AI processing finished successfully.")
