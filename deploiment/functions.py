@@ -1,19 +1,11 @@
 import xml.etree.ElementTree as ET
-import sys
 import pandas as pd
 import joblib
-from sklearn.model_selection import train_test_split
-import shutil
 from netCDF4 import Dataset
 import numpy as np
-import os
-from subprocess import Popen, STDOUT
-import subprocess
 from pathlib import Path
-import sys
 import math
 import re
-import json
 from tensorflow.keras.models import load_model
 
 def get_RTMode(phase):
