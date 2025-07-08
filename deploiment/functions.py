@@ -31,47 +31,17 @@ def get_RTMode(phase):
         if toa_to_boa_value is not None:
             return int(toa_to_boa_value)
     except:
-        raise ValueError("CAN NOT FIND Atmosphere Radiative Transfer Mode")
+        raise ValueError("--------- Atmosphere Radiative Transfer Mode NOT FOUND ---------")
 
 def find_paths(path: Path, keyword: str):
     for parent in path.parents:
         if keyword in parent.name:
             return parent
-    raise ValueError(f"No parent directory containing '{keyword}' found.")
+    raise ValueError(f"--------- NO PARENT DIRECTORY CONTAINING '{keyword}' FOUND. ---------")
 
 
 
-def run_simulation(simulation, DART_HOME, DART_LOCAL, DART_TOOLS, direction=True, phase=True, maket=True, dart=True):
-    ext = '.bat' if sys.platform == 'win32' else '.sh'
-    
-    if direction and phase and maket and dart:
-        steps = ['dart-full']
-    else:
-        steps = []
-        if direction:
-            steps.append('dart-directions')
-        if phase:
-            steps.append('dart-phase')
-        if maket:
-            steps.append('dart-maket')
-        if dart:
-            steps.append('dart-only')
 
-    env = os.environ.copy()
-    env['DART_HOME'] = DART_HOME
-    env['DART_LOCAL'] = DART_LOCAL
-
-    process = None
-    log = open('run.log', 'w')
-
-    for step in steps:
-        cmd = (['bash'] if sys.platform != 'win32' else []) + [step + ext, simulation.split(os.sep + 'simulations' + os.sep, 1)[-1]]
-        print(cmd)
-        process = Popen(cmd, cwd=DART_TOOLS, env=env, stdout=log, stderr=STDOUT, shell=sys.platform == 'win32', universal_newlines=True)
-        if process.wait() > 0:
-            break
-    log.close()
-    return 0 if process is None else process.returncode 
 
 def find_files_xml(working_dir,file):
     try : 
@@ -87,7 +57,7 @@ def find_files_xml(working_dir,file):
 
         # Si aucun des deux n'est trouvé
     except :
-        raise ValueError(f'fichier {file} est introuvable ')
+        raise ValueError(f'--------- FILE {file} NOT FOUND. ---------')
 
 
 def atmosphere_param(atmosphere_nc,atmosphere_xml):
@@ -194,7 +164,7 @@ def prepare_features(atmosphere_list,SZA,z,reflectance_values):
     X_scaled = scaler.transform(df[cols_to_scale])
     #X_bins_encoded = encoder.transform(df[cols_to_encode])
     #encoded_feature_names = encoder.get_feature_names_out(cols_to_encode)
-    df.to_csv('new_samples_features_16.csv',index=False)
+    #df.to_csv('new_samples_features_16.csv',index=False)
     # Construction du DataFrame final
     df_scaled = pd.DataFrame(
             X_scaled,
@@ -215,33 +185,36 @@ def get_SZA(directions_path) :
         zenith_angle = sva.get("sunViewingZenithAngle")
         return float(zenith_angle)
     else:
-        raise ValueError("le fichier directions.xml est introuvable")
+        raise ValueError("--------- Sun Viewing Zenith Angle NOT FOUND. AI MODE WORKS ONLY WITH VIEWING ANGLE. ---------")
     
 def get_reflectance(macket_scn,phase_scn):
-
-    pattern_id = re.compile(r"scene\.objects\.object[\d_\-]+\.dartNameId=fg0")
-    with open(macket_scn, "r", encoding="utf-8") as file:
-        lines = file.readlines()
-    for i, line in enumerate(lines):
-        if pattern_id.search(line):
-            break
-    target_line = lines[i + 4].strip()
-    value = target_line.split('=', 1)[1]
-    pattern_ref = re.compile(fr"scene\.materials\.{re.escape(value)}\.ref=")
-    for i, line in enumerate(lines):
-        if pattern_ref.search(line):
-            break
-    ref = line.split('=', 1)[1]
-    ref = ref.strip()
-    pattern_value = re.compile(fr"scene\.materials\.{re.escape(ref)}\.(kd|kr)=(.+)")
-    with open(phase_scn, "r", encoding="utf-8") as file:
-        lines = file.readlines()
-    for i, line in enumerate(lines):
-        if pattern_value.search(line):
-            values = line.split('=', 1)[1]
-            reflectance_values=values.split(' ')
-            reflectance_values=[float(i.strip()) for i in reflectance_values]
-            return reflectance_values
+    try :
+        pattern_id = re.compile(r"scene\.objects\.object[\d_\-]+\.dartNameId=fg0")
+        with open(macket_scn, "r", encoding="utf-8") as file:
+            lines = file.readlines()
+        for i, line in enumerate(lines):
+            if pattern_id.search(line):
+                break
+        target_line = lines[i + 4].strip()
+        value = target_line.split('=', 1)[1]
+        pattern_ref = re.compile(fr"scene\.materials\.{re.escape(value)}\.ref=")
+        for i, line in enumerate(lines):
+            if pattern_ref.search(line):
+                break
+        ref = line.split('=', 1)[1]
+        ref = ref.strip()
+        pattern_value = re.compile(fr"scene\.materials\.{re.escape(ref)}\.(kd|kr)=(.+)")
+        with open(phase_scn, "r", encoding="utf-8") as file:
+            lines = file.readlines()
+        for i, line in enumerate(lines):
+            if pattern_value.search(line):
+                values = line.split('=', 1)[1]
+                reflectance_values=values.split(' ')
+                reflectance_values=[float(i.strip()) for i in reflectance_values]
+                return reflectance_values
+    except :
+        raise ValueError("--------- SCENE REFLECTANCE VALUE NOT FOUND. ---------") 
+        
 
 
 def get_altitude(directions_path):
@@ -255,24 +228,8 @@ def get_altitude(directions_path):
         altitude = values.get("altitude")
         return float(altitude)
     else:
-        raise ValueError("le fichier maket.xml est introuvable.")
+        raise ValueError("--------- maket.xml FILE NOT FOUND. ---------")
 
-def Edit_alpha_IA(value,phase_path):
-    # Charger le fichier XML
-    tree = ET.parse(phase_path)
-    root = tree.getroot()
-
-    # Accéder à la balise <ForwardScatteringFunction>
-    fsf = root.find(".//ForwardScatteringFunction")
-
-    # Vérifier et modifier les attributs
-    if fsf is not None:
-        fsf.set("gas_u", f'{value}')         # Nouvelle valeur de gas_u
-        fsf.set("aerosols_u", f'{value/3}')    # Nouvelle valeur de aerosols_u
-        
-
-    # Sauvegarder les modifications
-    tree.write(phase_path)
 
 def edit_phase_scn(filepath, new_value):
     parameter='scene.lights.sky.color'
@@ -328,55 +285,27 @@ def EXTRACT_E_direct(path,SZA):
         return None  
     except :
 
-        raise ValueError("Valeurs de E_DIRECT non trouvées.")
+        raise ValueError("--------- E_DIRECT VALUES NOT FOUND. ---------")
 
 
 
-'''def calculate_BOA_TOTAL(SZA,Z,alpha,l,E_TOA):   
-    def muprime(z,h,µ):
-        RAYON_TERRESTRE=6371
-        eta = (RAYON_TERRESTRE*1000 + z) / h
-        root = (eta*µ)**2  + 2 * eta + 1
-        sum = (root)**0.5 - eta * µ
-        if sum > 0 :
-            return 1/sum
-        return 1 
-    BOA=[]
-    for i in range(len(l)) :
-        tg_scat, tg_abs, optical_depth, albedo, a, g1 = l[i]
-        Ha=2000
-        Hg=9000
-        angle_rad = math.radians(SZA)
-        µ=math.cos(angle_rad)  
-        Y_a=muprime(Z,Ha,µ)
-        Y_g=muprime(Z,Hg,µ)
-        Ma=math.exp(-Z/Ha)/Y_a
-        Mg=math.exp(-Z/Hg)/Y_g
-        delta_a_scat=optical_depth*albedo
-        delta_g_scat=-math.log(tg_scat)
-        Ta_abs=math.exp(-optical_depth*(1-albedo))
-        numerator= E_TOA[i]*(tg_abs**Mg)*(Ta_abs**Ma)
-        denominator=1+alpha[i]*delta_g_scat*Mg+(alpha[i]*(1/3)*delta_a_scat)*Ma
-        BOA_i= numerator / denominator
-        if BOA_i>= 0 :
-        	BOA.append(BOA_i)
-        else :
-        	BOA.append(0)
 
-    return BOA'''
 
 def get_spectral_mode(phase_path):
-    tree = ET.parse(phase_path)  # Remplace par le chemin réel
-    root = tree.getroot()
+    try :
+        tree = ET.parse(phase_path)  # Remplace par le chemin réel
+        root = tree.getroot()
 
-    # Initialiser la liste pour stocker les valeurs
-    spectral_dart_modes = []
+        # Initialiser la liste pour stocker les valeurs
+        spectral_dart_modes = []
 
-    # Parcourir tous les éléments SpectralIntervalsProperties
-    for elem in root.iter('SpectralIntervalsProperties'):
-        val = elem.get('spectralDartMode')
-        if val is not None:
-            spectral_dart_modes.append(int(val))
+        # Parcourir tous les éléments SpectralIntervalsProperties
+        for elem in root.iter('SpectralIntervalsProperties'):
+            val = elem.get('spectralDartMode')
+            if val is not None:
+                spectral_dart_modes.append(int(val))
+    except :
+        raise ValueError("--------- SPECTRAL MODE NOT FOUND. ---------") 
 
     return spectral_dart_modes
 
@@ -390,20 +319,18 @@ def EXTRACT_E_diffus(path):
         return None  
     except :
 
-        raise ValueError("E_diffus values not found.")
+        raise ValueError("--------- E_DIFFUS VALUES NOT FOUND. ---------")
     
 def E_diffus_final_values(new,old,sm):
     
     l=[new[i] if sm[i]==0 else old[i] for i in range(len(new)) ]
-
     return l
+    
 def calculate_BOA_TOTAL_BOA(predictions, E_TOA):   
     return [p * e if p >= 0 else 0 for p, e in zip(predictions, E_TOA)]
 
 def launch_ai(simulation_path):
     working_dir = Path(simulation_path)
-
-    simulation = working_dir.name
     atmosphere_nc = working_dir / 'output' / 'atmosphere.nc'
     maket_scn= working_dir / 'output' / 'maket.scn'
     phase_scn=  working_dir / 'output' / 'phase.scn'
@@ -411,7 +338,6 @@ def launch_ai(simulation_path):
 
     atmosphere_xml = find_files_xml(working_dir, 'atmosphere.xml')
     directions_path = find_files_xml(working_dir, 'directions.xml')
-    coeff_diff_path = find_files_xml(working_dir, 'coeff_diff.xml')
     maket_path = find_files_xml(working_dir, 'maket.xml')
     phase_path = find_files_xml(working_dir, 'phase.xml')
 
