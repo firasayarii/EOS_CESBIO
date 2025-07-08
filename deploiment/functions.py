@@ -24,6 +24,17 @@ def get_RTMode(phase):
             return int(toa_to_boa_value)
     except:
         raise ValueError("--------- Atmosphere Radiative Transfer Mode NOT FOUND ---------")
+    
+
+def light_propagation_mode(path):
+    tree = ET.parse(path)  # Remplace par le chemin réel
+    root = tree.getroot()
+    try:
+        phase = root.find("Phase")
+        acceleration_engine = phase.get("accelerationEngine")
+        return int(acceleration_engine)
+    except :
+        raise ValueError("--------- CAN NOT DETERMINATE LIGHT PROPAGATION MODE FROM phase.xml FILE---------")
 
 def find_paths(path: Path, keyword: str):
     for parent in path.parents:
@@ -333,15 +344,16 @@ def launch_ai(simulation_path):
     maket_path = find_files_xml(working_dir, 'maket.xml')
     phase_path = find_files_xml(working_dir, 'phase.xml')
 
-    DART_HOME = find_paths(working_dir,'DART')
+    
     
 
     mode = get_RTMode(phase_path)
-    if mode != 1:
-        print("-------- AI MODEL WORKS ONLY WITH ANALYTICAL MODE -----------")
-        return
+    light_propagation_mode_value = light_propagation_mode(phase_path)
+    if (mode != 1) or (light_propagation_mode_value != 2):
+        raise ValueError("-------- AI MODEL WORKS ONLY WITH ANALYTICAL MODE  AND BI-DIRECTIONAL LIGHT PROPAGATION MODE -----------")
+        
 
-    # Préparation des données
+    
     scaler_y = joblib.load('scaler_y_SS_BOA_DART.pkl')
     SZA = get_SZA(directions_path)
     z = get_altitude(maket_path)
@@ -371,4 +383,4 @@ def launch_ai(simulation_path):
     E_diffus = E_diffus_final_values(E_diffus, E_diffus_old, spectral_mode)
 
     edit_phase_scn(phase_scn, E_diffus)
-    print("✅ AI processing finished successfully.")
+    print("--------- AI processing finished successfully. --------- ")
