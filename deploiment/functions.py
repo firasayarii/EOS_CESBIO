@@ -6,6 +6,8 @@ import numpy as np
 from pathlib import Path
 import math
 import re
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 from tensorflow.keras.models import load_model
 
 def get_RTMode(phase):
@@ -374,7 +376,7 @@ def launch_ai(simulation_path):
     E_direct = EXTRACT_E_direct(phase_scn, SZA)
 
     if len(E_BOA) == len(E_direct):
-        E_diffus = [i - j for i, j in zip(E_BOA, E_direct)]
+        E_diffus = [i - j  if i > j else 0 for i, j in zip(E_BOA, E_direct)]
     else:
         E_diffus = [E_BOA[0] - i for i in E_direct]
 
