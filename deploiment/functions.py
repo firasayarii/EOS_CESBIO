@@ -325,14 +325,40 @@ def EXTRACT_E_diffus(path):
     except :
 
         raise ValueError("--------- E_DIFFUS VALUES NOT FOUND. ---------")
+def extract_E_diffus_R(file_path, band_number,SZA):
+    try :
+        BOA_value = None
+        SKYL_value = None
+        keyword_BOA = f"phase.band{band_number}.spectral.BOA"
+        keyword_SKYL = f"phase.band{band_number}.spectral.SKYL"
+
+        with open(file_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith(keyword_BOA):
+                    BOA_value = float(line.split(":")[1])
+                elif line.startswith(keyword_SKYL):
+                    SKYL_value = float(line.split(":")[1])
+        
+        return  SKYL_value*BOA_value*math.cos(math.radians(SZA))
+    except :
+        raise ValueError("--------- E_DIFFUS VALUES FOR MODE R+T NOT FOUND. ---------")
     
-def E_diffus_final_values(new,old,sm):
-    
-    l=[new[i] if sm[i]==0 else old[i] for i in range(len(new)) ]
+def E_diffus_final_values(new,old,sm,simulation_properties,SZA):
+    l=[]
+    for i in range(len(new)):
+        if sm[i]==0:
+            l.append(new[i])
+        if sm[i]==2 :
+            l.append(old[i])
+        else :
+            E_diff_R=extract_E_diffus_R(simulation_properties,i,SZA)
+            E_diff_T=old[i]-E_diff_R
+            l.append(E_diff_T+new[i])
     return l
-    
-def calculate_BOA_TOTAL_BOA(predictions, E_TOA):   
-    return [p * e if p >= 0 else 0 for p, e in zip(predictions, E_TOA)]
+
+def calculate_BOA_TOTAL_BOA(predictions, E_TOA,E_direct):   
+    return [p * e if p*e >= j else j for p, e,j in zip(predictions,E_TOA,E_direct)]
 
 def launch_ai(simulation_path):
     working_dir = Path(simulation_path)
@@ -368,21 +394,22 @@ def launch_ai(simulation_path):
     prediction = model.predict(df)
     predictions_array = prediction.reshape(-1, 1)
     predictions_original_scale = scaler_y.inverse_transform(predictions_array)
-    predictions_list = predictions_original_scale.flatten().tolist()
+    predictions_list = [max(0, p) for p in predictions_original_scale.flatten().tolist()]
 
     # Calculs finaux
     E_TOA = EXTRACT_TOA(simulation_properties, SZA)
-    E_BOA = calculate_BOA_TOTAL_BOA(predictions_list, E_TOA)
     E_direct = EXTRACT_E_direct(phase_scn, SZA)
+    E_BOA = calculate_BOA_TOTAL_BOA(predictions_list, E_TOA,E_direct)
+    
 
     if len(E_BOA) == len(E_direct):
-        E_diffus = [i - j  if i > j else 0 for i, j in zip(E_BOA, E_direct)]
+        E_diffus = [i - j  for i, j in zip(E_BOA, E_direct)]
     else:
         E_diffus = [E_BOA[0] - i for i in E_direct]
 
     spectral_mode = get_spectral_mode(phase_path)
     E_diffus_old = EXTRACT_E_diffus(phase_scn)
-    E_diffus = E_diffus_final_values(E_diffus, E_diffus_old, spectral_mode)
+    E_diffus = E_diffus_final_values(E_diffus, E_diffus_old, spectral_mode,simulation_properties,SZA)
 
     edit_phase_scn(phase_scn, E_diffus)
     print("--------- AI processing finished successfully. --------- ")
