@@ -1,4 +1,4 @@
-#### Description des fichiers présents dans ce répertoire ####
+#### Description des fichiers présents dans final_files ####
 
 -deep_model_v2.h5 : modèle d’IA permettant de prédire l’irradiance en bas de l’atmosphère (BOA).
 
