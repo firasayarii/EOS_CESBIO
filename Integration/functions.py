@@ -349,13 +349,30 @@ def E_diffus_final_values(new,old,sm,simulation_properties,SZA):
     for i in range(len(new)):
         if sm[i]==0:
             l.append(new[i])
-        if sm[i]==2 :
+        elif sm[i]==2 :
             l.append(old[i])
         else :
             E_diff_R=extract_E_diffus_R(simulation_properties,i,SZA)
             E_diff_T=old[i]-E_diff_R
             l.append(E_diff_T+new[i])
     return l
+
+def update_boa_values_simulation_prpreties(simulation_propreties, E_BOA,SZA):
+    with open(simulation_propreties, "r") as f:
+        lines = f.readlines()
+
+    updated_lines = []
+    for line in lines:
+        if line.startswith("phase.band") and ".spectral.BOA:" in line:
+            prefix = line.split(":")[0]
+            band_idx = int(prefix.split(".")[1].replace("band", ""))
+            if band_idx < len(E_BOA):
+                line = f"{prefix}:{E_BOA[band_idx]/math.cos(math.radians(SZA))}\n"
+        updated_lines.append(line)
+
+    with open(simulation_propreties, "w") as f:
+        f.writelines(updated_lines)
+
 
 def calculate_BOA_TOTAL_BOA(predictions, E_TOA,E_direct):   
     return [p * e if p*e >= j else j for p, e,j in zip(predictions,E_TOA,E_direct)]
@@ -410,6 +427,6 @@ def launch_ai(simulation_path):
     spectral_mode = get_spectral_mode(phase_path)
     E_diffus_old = EXTRACT_E_diffus(phase_scn)
     E_diffus = E_diffus_final_values(E_diffus, E_diffus_old, spectral_mode,simulation_properties,SZA)
-
+    update_boa_values_simulation_prpreties(simulation_properties, E_BOA, SZA)
     edit_phase_scn(phase_scn, E_diffus)
     print("--------- AI processing finished successfully. --------- ")

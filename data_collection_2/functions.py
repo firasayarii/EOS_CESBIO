@@ -129,8 +129,8 @@ def muprime(z,h,µ):
     return 1 
 
 def atmosphere_param(z,theta,batch_id):
-    atmosphere_nc=f'/home/fayari/DART1425/user_data/simulations/RTM_reference{batch_id}/output/atmosphere.nc'
-    atmosphere_xml=f'/home/fayari/DART1425/user_data/simulations/RTM_reference{batch_id}/input/atmosphere.xml'
+    atmosphere_nc=f'RTM_reference{batch_id}/output/atmosphere.nc'
+    atmosphere_xml=f'RTM_reference{batch_id}/input/atmosphere.xml'
     tree = ET.parse(atmosphere_xml)  # Remplace 'votre_fichier.xml' par le nom réel
     root = tree.getroot()
     l=[]
@@ -163,7 +163,7 @@ def atmosphere_param(z,theta,batch_id):
         
 
 def EXTRACT_BOA_RT(batch_id,l):
-    with open(f'/home/fayari/DART1425/user_data/simulations/RTM_reference{batch_id}/output/dart.txt', 'r') as file:
+    with open(f'RTM_reference{batch_id}/output/dart.txt', 'r') as file:
         boa_values = []
         for line in file:
             if "BOA Total" in line:
@@ -177,8 +177,3 @@ def EXTRACT_BOA_RT(batch_id,l):
 
 
 
-
-'''def Edit_g1(new_value,n):
-    simu=ptd.simulation('RTM_reference0')
-    simu.core.atmosphere.set_nodes(g1=new_value)
-    simu.write(overwrite=True)'''

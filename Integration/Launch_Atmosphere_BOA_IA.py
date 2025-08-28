@@ -6,9 +6,9 @@ Created on 18 sept. 2014
 
 Atmosphere BOA with IA launcher from DART code
 '''
-from functions import *
-import argparse
 
+import argparse
+from functions import *
 class launcher(object):
 
     def __init__(self, absPathToSimulation):
@@ -17,8 +17,7 @@ class launcher(object):
     def run(self):
         print(" - Reading entry parameters: ")        
         print("   Current simulation: "+self._absPathToSimulation)        
-        print(" - Currently not implemented, exiting ... ")  
-        launch_ai(self._absPathToSimulation)     
+        launch_ai(self._absPathToSimulation)         
 
 if __name__ == '__main__':
     # Launcher, do not modify below this line

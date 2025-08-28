@@ -1,0 +1,15 @@
+#### Description des fichiers présents dans ce répertoire ####
+
+-deep_model_v2.h5 : modèle d’IA permettant de prédire l’irradiance en bas de l’atmosphère (BOA).
+
+-scaler_SS_BOA_DART.pkl : fichier utilisé pour normaliser les données d’entrée.
+
+-scaler_y_SS_BOA_DART.pkl : fichier permettant d’appliquer l’opération inverse de normalisation sur les prédictions (car la sortie du modèle est normalisée).
+
+-functions.py : contient l’ensemble des fonctions nécessaires (extraction des données, normalisation, prédiction, modification des fichiers de sortie, etc.).
+
+-Launch_Atmosphere_BOA_IA.py : script principal exécutant le pipeline et appelant les différentes fonctions de functions.py.
+
+-data_function.py : regroupe les fonctions nécessaires pour saisir les entrées d’une simulation en utilisant pytools4dart.
+
+-data_collection.py : script utilisé pour la collecte de données. Il s’appuie sur data_functions.py et lance en parallèle trois simulations DART (nommées RTM_reference{id}, avec id variant de 0 à 2), chacune couvrant 100 longueurs d’onde.
