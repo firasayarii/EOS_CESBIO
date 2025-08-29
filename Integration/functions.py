@@ -7,8 +7,10 @@ from pathlib import Path
 import math
 import re
 import os
+from struct import unpack
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 from tensorflow.keras.models import load_model
+import warnings
 
 def get_RTMode(phase):
     tree = ET.parse(phase)  # Remplace avec ton chemin
@@ -192,7 +194,9 @@ def get_SZA(directions_path) :
     else:
         raise ValueError("--------- Sun Viewing Zenith Angle NOT FOUND. AI MODE WORKS ONLY WITH VIEWING ANGLE. ---------")
     
-def get_reflectance(macket_scn,phase_scn):
+import re
+import warnings
+def get_reflectance_bidirectional(macket_scn,phase_scn):
     try :
         pattern_id = re.compile(r"scene\.objects\.object[\d_\-]+\.dartNameId=fg0")
         with open(macket_scn, "r", encoding="utf-8") as file:
@@ -208,18 +212,99 @@ def get_reflectance(macket_scn,phase_scn):
                 break
         ref = line.split('=', 1)[1]
         ref = ref.strip()
-        pattern_value = re.compile(fr"scene\.materials\.{re.escape(ref)}\.(kd|kr)=(.+)")
+        pattern_value = re.compile(fr"scene\.materials\.{re.escape(ref)}\.(kd|kr|r0)=(.+)")
         with open(phase_scn, "r", encoding="utf-8") as file:
             lines = file.readlines()
+            reflectance_values=None
         for i, line in enumerate(lines):
             if pattern_value.search(line):
                 values = line.split('=', 1)[1]
                 reflectance_values=values.split(' ')
                 reflectance_values=[float(i.strip()) for i in reflectance_values]
-                return reflectance_values
+                
+        if reflectance_values is None :
+            pattern_value = re.compile(r"scene\.materials\.lambertian0\.(kd|kr|r0)=(.+)")
+            for i, line in enumerate(lines):
+                if pattern_value.search(line):
+                    values = line.split('=', 1)[1]
+                    reflectance_values=values.split(' ')
+                    reflectance_values=[float(i.strip()) for i in reflectance_values]
+                    warnings.warn("-------- This optical property can not be associated to the ground with AI model, the first Lambertian optical property is associated to the ground.    -----------")
+        return reflectance_values
+
     except :
-        raise ValueError("--------- SCENE REFLECTANCE VALUE NOT FOUND. ---------") 
+        raise ValueError("--------- Scene Reflectance Value Not Found. ---------") 
         
+def read_triangles(inpath):
+    if inpath is None or not os.path.exists(inpath):
+        print(f"ERROR: file {inpath} not found...")
+        return None
+
+    triangles = []
+
+    with open(inpath, "rb") as fd:
+        while True:
+            b = fd.read(1)
+            if not b:  # fin de fichier
+                break
+
+            # is quad ?
+            is_quad = unpack("b", b)[0]
+
+            # vertices coordinates (9 doubles)
+            verts = [unpack("d", fd.read(8))[0] for _ in range(9)]
+
+            # front face (2x unsigned int, 1x int)
+            front = [unpack("I", fd.read(4))[0],
+                     unpack("I", fd.read(4))[0],
+                     unpack("i", fd.read(4))[0]]
+
+            # is double face ?
+            is_double = unpack("b", fd.read(1))[0]
+
+            # back face (2x unsigned int, 1x int)
+            back = [unpack("I", fd.read(4))[0],
+                    unpack("I", fd.read(4))[0],
+                    unpack("i", fd.read(4))[0]]
+
+            # surface type
+            surf_type = unpack("I", fd.read(4))[0]
+
+            # concaténer tout dans une ligne
+            line = [is_quad] + verts + front + [is_double] + back + [surf_type]
+            triangles.append(line)
+            for l in triangles :
+                if l[-1] in (2, 7) :
+                    quit
+            optical_proprety=l[-8]
+            index=l[-7]
+            if optical_proprety != 0 :
+                warnings.warn("--------  This optical property can not be associated to the ground with AI model, the first Lambertian optical property is associated to the ground.  -----------")
+                return index 
+            else :
+                return index 
+                
+def get_reflectance_forword(index, simulation_properties):
+    reflectance_values = []
+    with open(simulation_properties, "r") as f:
+        for ligne in f:
+            ligne = ligne.strip()
+            if "phase.band" in ligne and f'lambertien.{index}' in ligne and "RO:" in ligne:
+                valeur = ligne.split(":")[1]  # split at ':'
+                reflectance_values.append(float(valeur))  # convert to float
+
+    if not reflectance_values:
+        with open(simulation_properties, "r") as f:
+            for ligne in f:
+                ligne = ligne.strip()
+                if "phase.band" in ligne and f'lambertien.0' in ligne and "RO:" in ligne:
+                    valeur = ligne.split(":")[1]  # split at ':'
+                    reflectance_values.append(float(valeur))  # convert to float
+                    
+
+    return reflectance_values
+
+
 
 
 def get_altitude(directions_path):
@@ -233,7 +318,7 @@ def get_altitude(directions_path):
         altitude = values.get("altitude")
         return float(altitude)
     else:
-        raise ValueError("--------- maket.xml FILE NOT FOUND. ---------")
+        raise ValueError("--------- Altitude Value Not Foud. ---------")
 
 
 def edit_phase_scn(filepath, new_value):
@@ -275,12 +360,12 @@ def EXTRACT_TOA(path, SZA):
 
     
     except Exception as e:
-        print(f"--------- TOA IRRADIANCE VALUES NOT FOUND --------- \n{e}")
+        print(f"--------- TOA IRRADIANCE Values Not Found --------- \n{e}")
         
 
     
 
-def EXTRACT_E_direct(path,SZA):
+def EXTRACT_E_direct_bidirectional(path,SZA):
     try :
         with open(path, 'r') as file:
             for line in file:  # ← ici, on lit ligne par ligne
@@ -290,9 +375,23 @@ def EXTRACT_E_direct(path,SZA):
         return None  
     except :
 
-        raise ValueError("--------- E_DIRECT VALUES NOT FOUND. ---------")
+        raise ValueError("--------- E_DIRECT Values Not Found. ---------")
 
-
+def EXTRACT_E_direct_forword(simulation_properties,sza):
+    BOA_values = []
+    SKY_values=[]
+    with open(simulation_properties, "r") as f:
+        for ligne in f:
+            ligne = ligne.strip()
+            if "phase.band" in ligne and 'spectral.BOA' in ligne  :
+                valeur = ligne.split(":")[1]   # coupe à partir de :
+                BOA_values.append(float(valeur)) # convertit en float
+            elif "phase.band" in ligne and 'spectral.SKYL' in ligne :
+                valeur = ligne.split(":")[1]   # coupe à partir de :
+                SKY_values.append(float(valeur)) # convertit en float
+        E_direct=[boa-(skyl*boa) for boa,skyl in zip(BOA_values,SKY_values)]
+        E_direct=[a*np.cos(np.radians(sza)) for a in E_direct]
+    return E_direct
 
 
 
@@ -310,11 +409,11 @@ def get_spectral_mode(phase_path):
             if val is not None:
                 spectral_dart_modes.append(int(val))
     except :
-        raise ValueError("--------- SPECTRAL MODE NOT FOUND. ---------") 
+        raise ValueError("--------- Spectral Mode Not Found. ---------") 
 
     return spectral_dart_modes
 
-def EXTRACT_E_diffus(path):
+def EXTRACT_E_diffus_bidirectional(path):
     try :
         with open(path, 'r') as file:
             for line in file:  # ← ici, on lit ligne par ligne
@@ -324,7 +423,24 @@ def EXTRACT_E_diffus(path):
         return None  
     except :
 
-        raise ValueError("--------- E_DIFFUS VALUES NOT FOUND. ---------")
+        raise ValueError("--------- E_DIFFUS Values Not Found. ---------")
+        
+def EXTRACT_E_diffus_forword(simulation_properties,sza):
+    BOA_values = []
+    SKY_values=[]
+    with open(simulation_properties, "r") as f:
+        for ligne in f:
+            ligne = ligne.strip()
+            if "phase.band" in ligne and 'spectral.BOA' in ligne  :
+                valeur = ligne.split(":")[1]   # coupe à partir de :
+                BOA_values.append(float(valeur)) # convertit en float
+            elif "phase.band" in ligne and 'spectral.SKYL' in ligne :
+                valeur = ligne.split(":")[1]   # coupe à partir de :
+                SKY_values.append(float(valeur)) # convertit en float
+        E_diff=[(skyl*boa) for boa,skyl in zip(BOA_values,SKY_values)]
+        E_diff=[a*np.cos(np.radians(sza)) for a in E_diff]
+    return E_diff
+    
 def extract_E_diffus_R(file_path, band_number,SZA):
     try :
         BOA_value = None
@@ -342,7 +458,7 @@ def extract_E_diffus_R(file_path, band_number,SZA):
         
         return  SKYL_value*BOA_value*math.cos(math.radians(SZA))
     except :
-        raise ValueError("--------- E_DIFFUS VALUES FOR MODE R+T NOT FOUND. ---------")
+        raise ValueError("--------- E_DIFFUS Values For Mode R+T Not Found. ---------")
     
 def E_diffus_final_values(new,old,sm,simulation_properties,SZA):
     l=[]
@@ -356,7 +472,23 @@ def E_diffus_final_values(new,old,sm,simulation_properties,SZA):
             E_diff_T=old[i]-E_diff_R
             l.append(E_diff_T+new[i])
     return l
+    
+def update_SKYL_values_simulation_prpreties(simulation_propreties,E_diff,E_direct):
+    with open(simulation_propreties, "r") as f:
+        lines = f.readlines()
 
+    updated_lines = []
+    for line in lines:
+        if line.startswith("phase.band") and 'spectral.SKYL:' in line:
+            prefix = line.split(":")[0]
+            band_idx = int(prefix.split(".")[1].replace("band", ""))
+            if band_idx < len(E_diff):
+                line = f"{prefix}:{E_diff[band_idx]/E_direct[band_idx]}\n"
+        updated_lines.append(line)
+
+    with open(simulation_propreties, "w") as f:
+        f.writelines(updated_lines)
+    
 def update_boa_values_simulation_prpreties(simulation_propreties, E_BOA,SZA):
     with open(simulation_propreties, "r") as f:
         lines = f.readlines()
@@ -373,7 +505,6 @@ def update_boa_values_simulation_prpreties(simulation_propreties, E_BOA,SZA):
     with open(simulation_propreties, "w") as f:
         f.writelines(updated_lines)
 
-
 def calculate_BOA_TOTAL_BOA(predictions, E_TOA,E_direct):   
     return [p * e if p*e >= j else j for p, e,j in zip(predictions,E_TOA,E_direct)]
 
@@ -382,6 +513,7 @@ def launch_ai(simulation_path):
     atmosphere_nc = working_dir / 'output' / 'atmosphere.nc'
     maket_scn= working_dir / 'output' / 'maket.scn'
     phase_scn=  working_dir / 'output' / 'phase.scn'
+    triangles_txt= working_dir / 'output' / 'triangles.txt'
     simulation_properties = working_dir / 'output' / 'simulation.properties.txt'
 
     atmosphere_xml = find_files_xml(working_dir, 'atmosphere.xml')
@@ -394,15 +526,19 @@ def launch_ai(simulation_path):
 
     mode = get_RTMode(phase_path)
     light_propagation_mode_value = light_propagation_mode(phase_path)
-    if (mode != 1) or (light_propagation_mode_value != 2):
-        raise ValueError("-------- AI MODEL WORKS ONLY WITH ANALYTICAL MODE  AND BI-DIRECTIONAL LIGHT PROPAGATION MODE -----------")
+    if light_propagation_mode_value == 2:
+    	reflectance = get_reflectance_bidirectional(maket_scn, phase_scn)
+    else :
+    	index_lambertian=read_triangles(triangles_txt)
+    	reflectance=get_reflectance_forword(index_lambertian,simulation_properties)
+
         
 
-    
+    print(reflectance)
     scaler_y = joblib.load('scaler_y_SS_BOA_DART.pkl')
     SZA = get_SZA(directions_path)
     z = get_altitude(maket_path)
-    reflectance = get_reflectance(maket_scn, phase_scn)
+    
     atmosphere_lists = atmosphere_param(atmosphere_nc, atmosphere_xml)
     df = prepare_features(atmosphere_lists, SZA, z, reflectance)
 
@@ -415,7 +551,10 @@ def launch_ai(simulation_path):
 
     # Calculs finaux
     E_TOA = EXTRACT_TOA(simulation_properties, SZA)
-    E_direct = EXTRACT_E_direct(phase_scn, SZA)
+    if light_propagation_mode_value == 2:
+    	E_direct = EXTRACT_E_direct_bidirectional(phase_scn, SZA)
+    else :
+    	E_direct = EXTRACT_E_direct_forword(simulation_properties, SZA)
     E_BOA = calculate_BOA_TOTAL_BOA(predictions_list, E_TOA,E_direct)
     
 
@@ -425,8 +564,16 @@ def launch_ai(simulation_path):
         E_diffus = [E_BOA[0] - i for i in E_direct]
 
     spectral_mode = get_spectral_mode(phase_path)
-    E_diffus_old = EXTRACT_E_diffus(phase_scn)
+    if light_propagation_mode_value == 2:
+    	E_diffus_old = EXTRACT_E_diffus_bidirectional(phase_scn)
+    else :
+    	E_diffus_old = EXTRACT_E_diffus_forword(simulation_properties,SZA)
     E_diffus = E_diffus_final_values(E_diffus, E_diffus_old, spectral_mode,simulation_properties,SZA)
+    #print(E_diffus_old)
+    #print(E_diffus)
+    if light_propagation_mode_value == 2:
+    	edit_phase_scn(phase_scn, E_diffus)
     update_boa_values_simulation_prpreties(simulation_properties, E_BOA, SZA)
-    edit_phase_scn(phase_scn, E_diffus)
+    update_SKYL_values_simulation_prpreties(simulation_properties,E_diffus,E_BOA)
     print("--------- AI processing finished successfully. --------- ")
+
